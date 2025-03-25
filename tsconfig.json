@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+      // 指定 ECMAScript 目标版本，这里是 ES2017
+      "target": "ES2021",
+      // 使用最新的 ES 模块标准
+      "module": "CommonJS",
+      // 允许导入符合 ES6 模块规范的模块，确保与 CommonJS 模块兼容
+      "esModuleInterop": true,
+      // 强制文件名的大小写必须一致，防止在大小写敏感的操作系统中出现问题
+      "forceConsistentCasingInFileNames": true,
+      // 启用所有严格类型检查选项
+      "strict": true,
+      // 指定输出文件夹，这里是 './dist'
+      "outDir": "./dist",
+      // 启用此选项会生成相应的 '.d.ts' 声明文件
+      "declaration": true,
+      // 是否跳过检查 '.d.ts' 声明文件，设置为 false 时，会检查所有的声明文件 '*.d.ts'，以确保类型正确
+      "skipLibCheck": true,
+      "resolveJsonModule": true
+  },
+  // 指定需要编译的文件和目录，这里是 'src' 目录下的所有文件
+  "include": [
+      "src/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
