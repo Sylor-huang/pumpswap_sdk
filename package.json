@@ -1,0 +1,24 @@
+{
+  "name": "pumpswap_sdk",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
+  },
+  "author": "Sylor-huang",
+  "license": "ISC",
+  "repository": "Sylor-huang/pumpswap_sdk",
+  "funding": "https://github.com/Sylor-huang/pumpswap_sdk.git",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@coral-xyz/borsh": "^0.30.1",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.8",
+    "bs58": "^6.0.0",
+    "fs": "^0.0.1-security",
+    "typescript": "^5.7.2"
+  }
+}
