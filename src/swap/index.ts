@@ -77,8 +77,10 @@ export class PumpSwapSDK {
       bought_token_amount,
       BigInt(Math.floor(solToBuy * (1 + slipp) * LAMPORTS_PER_SOL))
     );
-    const ata = getAssociatedTokenAddressSync(mint, user,false);
-    if(!ata) {
+    const ata = getAssociatedTokenAddressSync(mint, user);
+    const accountInfo = await this.connection.getAccountInfo(ata);
+
+    if(!accountInfo) {
       const createAta = createAssociatedTokenAccountIdempotentInstruction(
         user,
         ata,
@@ -99,7 +101,7 @@ export class PumpSwapSDK {
   ) {
     const slipp = slippage ?? DEFAULT_SLIPPAGE_BASIS; // Default: 5%
     const sell_token_amount = tokenAmount;
-    const pool = await getPumpSwapPool(this.connection, mint);
+    // const pool = await getPumpSwapPool(this.connection, mint);
     const price = await getPrice(this.connection, mint)
     const minOut = price * sell_token_amount * (1 - slipp)
 
