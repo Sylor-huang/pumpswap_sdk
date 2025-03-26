@@ -36,15 +36,18 @@ class PumpSwapSDK {
         const slipp = slippage ?? exports.DEFAULT_SLIPPAGE_BASIS; // Default: 5%
         const bought_token_amount = await (0, poolInfo_1.getBuyTokenAmount)(this.connection, BigInt(solToBuy * web3_js_1.LAMPORTS_PER_SOL), mint);
         const pool = await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint);
-        const pumpswap_buy_tx = await this.createBuyInstruction(pool, user, mint, bought_token_amount, BigInt(Math.floor(solToBuy * (1 + slipp) * web3_js_1.LAMPORTS_PER_SOL)));
+        const solAmount = solToBuy * (1 + slipp);
+        const pumpswap_buy_tx = await this.createBuyInstruction(pool, user, mint, bought_token_amount, BigInt(Math.floor(solAmount * web3_js_1.LAMPORTS_PER_SOL)));
+        // 由于直接使用 sol 兑换，所以这里需要新增 wsol 的账户
+        const wsolAccounts = await this.createWsolAccount(user, solAmount); // 包含三个数组，创建，转账，关闭
         const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, user);
         const accountInfo = await this.connection.getAccountInfo(ata);
         if (!accountInfo) {
             const createAta = (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(user, ata, user, mint);
-            return [createAta, pumpswap_buy_tx];
+            return [wsolAccounts[0], wsolAccounts[1], createAta, pumpswap_buy_tx, wsolAccounts[2]];
         }
         else {
-            return [ata, pumpswap_buy_tx];
+            return [wsolAccounts[0], wsolAccounts[1], ata, pumpswap_buy_tx, wsolAccounts[2]];
         }
     }
     async sell_exactAmount(mint, user, tokenAmount, slippage) {
@@ -55,7 +58,8 @@ class PumpSwapSDK {
         const minOut = price * sell_token_amount * (1 - slipp);
         const pumpswap_buy_tx = await this.createSellInstruction(await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint), user, mint, BigInt(Math.floor(sell_token_amount * 10 ** 6)), BigInt(Math.floor(minOut * web3_js_1.LAMPORTS_PER_SOL)));
         const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, user);
-        return [ata, pumpswap_buy_tx];
+        const wsolAccounts = await this.createWsolAccount(user, 0); // 包含三个数组，创建，转账，关闭
+        return [wsolAccounts[0], wsolAccounts[1], ata, pumpswap_buy_tx, wsolAccounts[2]];
     }
     async createBuyInstruction(poolId, user, mint, baseAmountOut, // Use bigint for u64
     maxQuoteAmountIn // Use bigint for u64
@@ -136,6 +140,24 @@ class PumpSwapSDK {
             programId: PUMP_AMM_PROGRAM_ID,
             data: data,
         });
+    }
+    async createWsolAccount(user, amount) {
+        const seed = web3_js_1.Keypair.generate().publicKey.toBase58().slice(0, 32);
+        const wsolAccount = await web3_js_1.PublicKey.createWithSeed(user, seed, TOKEN_PROGRAM_ID);
+        const rentExempt = await this.connection.getMinimumBalanceForRentExemption(165);
+        return [
+            web3_js_1.SystemProgram.createAccountWithSeed({
+                fromPubkey: user,
+                basePubkey: user,
+                seed: seed,
+                newAccountPubkey: wsolAccount,
+                lamports: rentExempt + (Number(amount) * web3_js_1.LAMPORTS_PER_SOL),
+                space: 165,
+                programId: TOKEN_PROGRAM_ID,
+            }),
+            (0, spl_token_1.createInitializeAccountInstruction)(wsolAccount, WSOL_TOKEN_ACCOUNT, user),
+            (0, spl_token_1.createCloseAccountInstruction)(wsolAccount, user, user)
+        ];
     }
 }
 exports.PumpSwapSDK = PumpSwapSDK;

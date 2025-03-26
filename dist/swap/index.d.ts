@@ -13,5 +13,6 @@ export declare class PumpSwapSDK {
     maxQuoteAmountIn: bigint): Promise<TransactionInstruction>;
     createSellInstruction(poolId: PublicKey, user: PublicKey, mint: PublicKey, baseAmountIn: bigint, // Use bigint for u64
     minQuoteAmountOut: bigint): Promise<TransactionInstruction>;
+    createWsolAccount(user: PublicKey, amount: Number): Promise<TransactionInstruction[]>;
 }
 export default PumpSwapSDK;
