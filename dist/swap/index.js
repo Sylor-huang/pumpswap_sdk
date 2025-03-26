@@ -37,36 +37,75 @@ class PumpSwapSDK {
         const bought_token_amount = await (0, poolInfo_1.getBuyTokenAmount)(this.connection, BigInt(solToBuy * web3_js_1.LAMPORTS_PER_SOL), mint);
         const pool = await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint);
         const solAmount = solToBuy * (1 + slipp);
-        const pumpswap_buy_tx = await this.createBuyInstruction(pool, user, mint, bought_token_amount, BigInt(Math.floor(solAmount * web3_js_1.LAMPORTS_PER_SOL)));
-        // 由于直接使用 sol 兑换，所以这里需要新增 wsol 的账户
-        const wsolAccounts = await this.createWsolAccount(user, solAmount); // 包含三个数组，创建，转账，关闭
-        const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, user);
-        const accountInfo = await this.connection.getAccountInfo(ata);
-        if (!accountInfo) {
-            const createAta = (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(user, ata, user, mint);
-            return [wsolAccounts[0], wsolAccounts[1], createAta, pumpswap_buy_tx, wsolAccounts[2]];
+        const instructions = [];
+        const newKeyPair = web3_js_1.Keypair.generate();
+        const signers = [newKeyPair];
+        // 1. Create temporary WSOL account
+        const rentExempt = await this.connection.getMinimumBalanceForRentExemption(165);
+        const createTempAccountIx = web3_js_1.SystemProgram.createAccount({
+            fromPubkey: user,
+            newAccountPubkey: newKeyPair.publicKey,
+            lamports: rentExempt + Math.floor(solAmount * web3_js_1.LAMPORTS_PER_SOL),
+            space: 165,
+            programId: TOKEN_PROGRAM_ID,
+        });
+        instructions.push(createTempAccountIx);
+        // 2. Initialize the account as a WSOL token account
+        const initAccountIx = (0, spl_token_1.createInitializeAccountInstruction)(newKeyPair.publicKey, WSOL_TOKEN_ACCOUNT, user);
+        instructions.push(initAccountIx);
+        // 3. Check if the destination token account exists and create if needed
+        const tokenAta = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, user);
+        const tokenAccountInfo = await this.connection.getAccountInfo(tokenAta);
+        if (!tokenAccountInfo) {
+            const createTokenAtaIx = (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(user, tokenAta, user, mint);
+            instructions.push(createTokenAtaIx);
         }
-        else {
-            return [wsolAccounts[0], wsolAccounts[1], ata, pumpswap_buy_tx, wsolAccounts[2]];
-        }
+        // 4. Create the buy instruction using our temp WSOL account
+        const pumpswap_buy_tx = await this.createBuyInstruction(pool, user, mint, bought_token_amount, BigInt(Math.floor(solAmount * web3_js_1.LAMPORTS_PER_SOL)), newKeyPair.publicKey // Use our temp account here instead of ATA
+        );
+        instructions.push(pumpswap_buy_tx);
+        // 5. Close the temporary account to recover SOL
+        const closeAccountIx = (0, spl_token_1.createCloseAccountInstruction)(newKeyPair.publicKey, user, user);
+        instructions.push(closeAccountIx);
+        return { instructions, signers };
     }
     async sell_exactAmount(mint, user, tokenAmount, slippage) {
         const slipp = slippage ?? exports.DEFAULT_SLIPPAGE_BASIS; // Default: 5%
         const sell_token_amount = tokenAmount;
-        // const pool = await getPumpSwapPool(this.connection, mint);
         const price = await (0, poolInfo_1.getPrice)(this.connection, mint);
         const minOut = price * sell_token_amount * (1 - slipp);
-        const pumpswap_buy_tx = await this.createSellInstruction(await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint), user, mint, BigInt(Math.floor(sell_token_amount * 10 ** 6)), BigInt(Math.floor(minOut * web3_js_1.LAMPORTS_PER_SOL)));
-        const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, user);
-        const wsolAccounts = await this.createWsolAccount(user, 0); // 包含三个数组，创建，转账，关闭
-        return [wsolAccounts[0], wsolAccounts[1], ata, pumpswap_buy_tx, wsolAccounts[2]];
+        const instructions = [];
+        const newKeyPair = web3_js_1.Keypair.generate();
+        const signers = [newKeyPair];
+        // 1. Create temporary WSOL account with just enough SOL for rent
+        const rentExempt = await this.connection.getMinimumBalanceForRentExemption(165);
+        const createTempAccountIx = web3_js_1.SystemProgram.createAccount({
+            fromPubkey: user,
+            newAccountPubkey: newKeyPair.publicKey,
+            lamports: rentExempt,
+            space: 165,
+            programId: TOKEN_PROGRAM_ID,
+        });
+        instructions.push(createTempAccountIx);
+        // 2. Initialize the account as a WSOL token account
+        const initAccountIx = (0, spl_token_1.createInitializeAccountInstruction)(newKeyPair.publicKey, WSOL_TOKEN_ACCOUNT, user);
+        instructions.push(initAccountIx);
+        // 3. Create the sell instruction using our temp WSOL account
+        const pumpswap_sell_tx = await this.createSellInstruction(await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint), user, mint, BigInt(Math.floor(sell_token_amount * 10 ** 6)), BigInt(Math.floor(minOut * web3_js_1.LAMPORTS_PER_SOL)), newKeyPair.publicKey // Use our temp account here instead of ATA
+        );
+        instructions.push(pumpswap_sell_tx);
+        // 4. Close the temporary account to recover SOL
+        const closeAccountIx = (0, spl_token_1.createCloseAccountInstruction)(newKeyPair.publicKey, user, user);
+        instructions.push(closeAccountIx);
+        return { instructions, signers };
     }
-    async createBuyInstruction(poolId, user, mint, baseAmountOut, // Use bigint for u64
-    maxQuoteAmountIn // Use bigint for u64
+    async createBuyInstruction(poolId, user, mint, baseAmountOut, maxQuoteAmountIn, userQuoteTokenAccount // Optional custom wsol account
     ) {
         // Compute associated token account addresses
         const userBaseTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(mint, user);
-        const userQuoteTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(WSOL_TOKEN_ACCOUNT, user);
+        // If no custom account is provided, use the default ATA
+        const userQuoteAccount = userQuoteTokenAccount ||
+            await (0, spl_token_1.getAssociatedTokenAddress)(WSOL_TOKEN_ACCOUNT, user);
         const poolBaseTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(mint, poolId, true);
         const poolQuoteTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(WSOL_TOKEN_ACCOUNT, poolId, true);
         // Define the accounts for the instruction
@@ -77,7 +116,7 @@ class PumpSwapSDK {
             { pubkey: mint, isSigner: false, isWritable: false }, // mint (readonly)
             { pubkey: WSOL_TOKEN_ACCOUNT, isSigner: false, isWritable: false }, // WSOL_TOKEN_ACCOUNT (readonly)
             { pubkey: userBaseTokenAccount, isSigner: false, isWritable: true }, // user_base_token_account
-            { pubkey: userQuoteTokenAccount, isSigner: false, isWritable: true }, // user_quote_token_account
+            { pubkey: userQuoteAccount, isSigner: false, isWritable: true }, // user_quote_token_account (WSOL)
             { pubkey: poolBaseTokenAccount, isSigner: false, isWritable: true }, // pool_base_token_account
             { pubkey: poolQuoteTokenAccount, isSigner: false, isWritable: true }, // pool_quote_token_account
             { pubkey: feeRecipient, isSigner: false, isWritable: false }, // fee_recipient (readonly)
@@ -102,11 +141,14 @@ class PumpSwapSDK {
         });
     }
     async createSellInstruction(poolId, user, mint, baseAmountIn, // Use bigint for u64
-    minQuoteAmountOut // Use bigint for u64
+    minQuoteAmountOut, // Use bigint for u64
+    userQuoteTokenAccount // Optional custom wsol account
     ) {
         // Compute associated token account addresses
         const userBaseTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(mint, user);
-        const userQuoteTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(WSOL_TOKEN_ACCOUNT, user);
+        // If no custom account is provided, use the default ATA
+        const userQuoteAccount = userQuoteTokenAccount ||
+            await (0, spl_token_1.getAssociatedTokenAddress)(WSOL_TOKEN_ACCOUNT, user);
         const poolBaseTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(mint, poolId, true);
         const poolQuoteTokenAccount = await (0, spl_token_1.getAssociatedTokenAddress)(WSOL_TOKEN_ACCOUNT, poolId, true);
         // Define the accounts for the instruction
@@ -117,13 +159,13 @@ class PumpSwapSDK {
             { pubkey: mint, isSigner: false, isWritable: false }, // mint (readonly)
             { pubkey: WSOL_TOKEN_ACCOUNT, isSigner: false, isWritable: false }, // WSOL_TOKEN_ACCOUNT (readonly)
             { pubkey: userBaseTokenAccount, isSigner: false, isWritable: true }, // user_base_token_account
-            { pubkey: userQuoteTokenAccount, isSigner: false, isWritable: true }, // user_quote_token_account
+            { pubkey: userQuoteAccount, isSigner: false, isWritable: true }, // user_quote_token_account (WSOL)
             { pubkey: poolBaseTokenAccount, isSigner: false, isWritable: true }, // pool_base_token_account
             { pubkey: poolQuoteTokenAccount, isSigner: false, isWritable: true }, // pool_quote_token_account
             { pubkey: feeRecipient, isSigner: false, isWritable: false }, // fee_recipient (readonly)
             { pubkey: feeRecipientAta, isSigner: false, isWritable: true }, // fee_recipient_ata
             { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // TOKEN_PROGRAM_ID (readonly)
-            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // TOKEN_PROGRAM_ID (readonly, duplicated as in Rust)
+            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // TOKEN_PROGRAM_
             { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false }, // System Program (readonly)
             { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // ASSOCIATED_TOKEN_PROGRAM_ID (readonly)
             { pubkey: eventAuthority, isSigner: false, isWritable: false }, // event_authority (readonly)
@@ -140,24 +182,6 @@ class PumpSwapSDK {
             programId: PUMP_AMM_PROGRAM_ID,
             data: data,
         });
-    }
-    async createWsolAccount(user, amount) {
-        const seed = web3_js_1.Keypair.generate().publicKey.toBase58().slice(0, 32);
-        const wsolAccount = await web3_js_1.PublicKey.createWithSeed(user, seed, TOKEN_PROGRAM_ID);
-        const rentExempt = await this.connection.getMinimumBalanceForRentExemption(165);
-        return [
-            web3_js_1.SystemProgram.createAccountWithSeed({
-                fromPubkey: user,
-                basePubkey: user,
-                seed: seed,
-                newAccountPubkey: wsolAccount,
-                lamports: rentExempt + (Number(amount) * web3_js_1.LAMPORTS_PER_SOL),
-                space: 165,
-                programId: TOKEN_PROGRAM_ID,
-            }),
-            (0, spl_token_1.createInitializeAccountInstruction)(wsolAccount, WSOL_TOKEN_ACCOUNT, user),
-            (0, spl_token_1.createCloseAccountInstruction)(wsolAccount, user, user)
-        ];
     }
 }
 exports.PumpSwapSDK = PumpSwapSDK;

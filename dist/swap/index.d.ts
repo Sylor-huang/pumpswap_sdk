@@ -1,4 +1,4 @@
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { Connection, PublicKey, TransactionInstruction, Keypair } from "@solana/web3.js";
 import { Program } from "@coral-xyz/anchor";
 import { PumpSwap } from "../IDL/index";
 export declare const DEFAULT_DECIMALS = 6;
@@ -7,12 +7,17 @@ export declare class PumpSwapSDK {
     program: Program<PumpSwap>;
     connection: Connection;
     constructor(connection: Connection, user?: PublicKey);
-    buy(mint: PublicKey, user: PublicKey, solToBuy: number, slippage?: number): Promise<(PublicKey | TransactionInstruction)[]>;
-    sell_exactAmount(mint: PublicKey, user: PublicKey, tokenAmount: number, slippage?: number): Promise<(PublicKey | TransactionInstruction)[]>;
-    createBuyInstruction(poolId: PublicKey, user: PublicKey, mint: PublicKey, baseAmountOut: bigint, // Use bigint for u64
-    maxQuoteAmountIn: bigint): Promise<TransactionInstruction>;
+    buy(mint: PublicKey, user: PublicKey, solToBuy: number, slippage?: number): Promise<{
+        instructions: TransactionInstruction[];
+        signers: Keypair[];
+    }>;
+    sell_exactAmount(mint: PublicKey, user: PublicKey, tokenAmount: number, slippage?: number): Promise<{
+        instructions: TransactionInstruction[];
+        signers: Keypair[];
+    }>;
+    createBuyInstruction(poolId: PublicKey, user: PublicKey, mint: PublicKey, baseAmountOut: bigint, maxQuoteAmountIn: bigint, userQuoteTokenAccount?: PublicKey): Promise<TransactionInstruction>;
     createSellInstruction(poolId: PublicKey, user: PublicKey, mint: PublicKey, baseAmountIn: bigint, // Use bigint for u64
-    minQuoteAmountOut: bigint): Promise<TransactionInstruction>;
-    createWsolAccount(user: PublicKey, amount: Number): Promise<TransactionInstruction[]>;
+    minQuoteAmountOut: bigint, // Use bigint for u64
+    userQuoteTokenAccount?: PublicKey): Promise<TransactionInstruction>;
 }
 export default PumpSwapSDK;
