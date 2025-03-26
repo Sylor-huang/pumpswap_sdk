@@ -37,8 +37,9 @@ class PumpSwapSDK {
         const bought_token_amount = await (0, poolInfo_1.getBuyTokenAmount)(this.connection, BigInt(solToBuy * web3_js_1.LAMPORTS_PER_SOL), mint);
         const pool = await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint);
         const pumpswap_buy_tx = await this.createBuyInstruction(pool, user, mint, bought_token_amount, BigInt(Math.floor(solToBuy * (1 + slipp) * web3_js_1.LAMPORTS_PER_SOL)));
-        const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, user, false);
-        if (!ata) {
+        const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, user);
+        const accountInfo = await this.connection.getAccountInfo(ata);
+        if (!accountInfo) {
             const createAta = (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(user, ata, user, mint);
             return [createAta, pumpswap_buy_tx];
         }
@@ -49,7 +50,7 @@ class PumpSwapSDK {
     async sell_exactAmount(mint, user, tokenAmount, slippage) {
         const slipp = slippage ?? exports.DEFAULT_SLIPPAGE_BASIS; // Default: 5%
         const sell_token_amount = tokenAmount;
-        const pool = await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint);
+        // const pool = await getPumpSwapPool(this.connection, mint);
         const price = await (0, poolInfo_1.getPrice)(this.connection, mint);
         const minOut = price * sell_token_amount * (1 - slipp);
         const pumpswap_buy_tx = await this.createSellInstruction(await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint), user, mint, BigInt(Math.floor(sell_token_amount * 10 ** 6)), BigInt(Math.floor(minOut * web3_js_1.LAMPORTS_PER_SOL)));

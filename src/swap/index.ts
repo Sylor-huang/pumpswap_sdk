@@ -4,12 +4,15 @@ import {
   TransactionInstruction,
   SystemProgram,
   LAMPORTS_PER_SOL,
+  Keypair
 } from "@solana/web3.js";
 import {Program, Provider} from "@coral-xyz/anchor";
 import {
   getAssociatedTokenAddress,
   getAssociatedTokenAddressSync,
   createAssociatedTokenAccountIdempotentInstruction,
+  createInitializeAccountInstruction,
+  createCloseAccountInstruction
 } from "@solana/spl-token";
 import {PumpSwap, IDL} from "../IDL/index";
 import {
@@ -70,13 +73,17 @@ export class PumpSwapSDK {
       mint
     );
     const pool = await getPumpSwapPool(this.connection, mint);
+    const solAmount = solToBuy * (1 + slipp)
     const pumpswap_buy_tx = await this.createBuyInstruction(
       pool,
       user,
       mint,
       bought_token_amount,
-      BigInt(Math.floor(solToBuy * (1 + slipp) * LAMPORTS_PER_SOL))
+      BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL))
     );
+
+    // 由于直接使用 sol 兑换，所以这里需要新增 wsol 的账户
+    const wsolAccounts = await this.createWsolAccount(user, solAmount) // 包含三个数组，创建，转账，关闭
     const ata = getAssociatedTokenAddressSync(mint, user);
     const accountInfo = await this.connection.getAccountInfo(ata);
 
@@ -87,9 +94,9 @@ export class PumpSwapSDK {
         user,
         mint
       )
-      return [createAta, pumpswap_buy_tx]
+      return [wsolAccounts[0], wsolAccounts[1], createAta, pumpswap_buy_tx, wsolAccounts[2]]
     }else{
-      return [ata, pumpswap_buy_tx]
+      return [wsolAccounts[0], wsolAccounts[1], ata, pumpswap_buy_tx, wsolAccounts[2]]
     }
   }
 
@@ -113,7 +120,9 @@ export class PumpSwapSDK {
       BigInt(Math.floor(minOut * LAMPORTS_PER_SOL))
     );
     const ata = getAssociatedTokenAddressSync(mint, user);
-    return [ata, pumpswap_buy_tx]
+    const wsolAccounts = await this.createWsolAccount(user, 0) // 包含三个数组，创建，转账，关闭
+
+    return [wsolAccounts[0], wsolAccounts[1],ata, pumpswap_buy_tx, wsolAccounts[2]]
   }
 
   async createBuyInstruction(
@@ -233,6 +242,38 @@ export class PumpSwapSDK {
       programId: PUMP_AMM_PROGRAM_ID,
       data: data,
     });
+  }
+
+  async createWsolAccount(user: PublicKey, amount: Number) {
+    const seed = Keypair.generate().publicKey.toBase58().slice(0, 32);
+    const wsolAccount = await PublicKey.createWithSeed(
+      user,
+      seed,
+      TOKEN_PROGRAM_ID
+    );
+  
+    const rentExempt = await this.connection.getMinimumBalanceForRentExemption(165);
+    return [
+      SystemProgram.createAccountWithSeed({
+        fromPubkey: user,
+        basePubkey: user,
+        seed: seed,
+        newAccountPubkey: wsolAccount,
+        lamports: rentExempt + (Number(amount) * LAMPORTS_PER_SOL),
+        space: 165,
+        programId: TOKEN_PROGRAM_ID,
+      }),
+      createInitializeAccountInstruction(
+        wsolAccount,
+        WSOL_TOKEN_ACCOUNT,
+        user
+      ),
+      createCloseAccountInstruction(
+        wsolAccount,
+        user,
+        user
+      )
+    ]
   }
 }
 
