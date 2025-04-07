@@ -310,6 +310,11 @@ export class PumpSwapSDK {
       data: data,
     });
   }
+
+  public async getTokenPrice(mint: PublicKey) {
+    const price = await getPrice(this.connection, mint);
+    return price
+  }
 }
 
 export default PumpSwapSDK;

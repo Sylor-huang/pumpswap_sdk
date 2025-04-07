@@ -183,6 +183,10 @@ class PumpSwapSDK {
             data: data,
         });
     }
+    async getTokenPrice(mint) {
+        const price = await (0, poolInfo_1.getPrice)(this.connection, mint);
+        return price;
+    }
 }
 exports.PumpSwapSDK = PumpSwapSDK;
 exports.default = PumpSwapSDK;

@@ -19,5 +19,6 @@ export declare class PumpSwapSDK {
     createSellInstruction(poolId: PublicKey, user: PublicKey, mint: PublicKey, baseAmountIn: bigint, // Use bigint for u64
     minQuoteAmountOut: bigint, // Use bigint for u64
     userQuoteTokenAccount?: PublicKey): Promise<TransactionInstruction>;
+    getTokenPrice(mint: PublicKey): Promise<number>;
 }
 export default PumpSwapSDK;
