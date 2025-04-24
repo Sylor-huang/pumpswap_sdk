@@ -7,11 +7,11 @@ export declare class PumpSwapSDK {
     program: Program<PumpSwap>;
     connection: Connection;
     constructor(connection: Connection, user?: PublicKey);
-    buy(mint: PublicKey, user: PublicKey, solToBuy: number, slippage?: number): Promise<{
+    buy(mint: PublicKey, user: PublicKey, solToBuy: number, slippage?: number, poolAddress?: PublicKey): Promise<{
         instructions: TransactionInstruction[];
         signers: Keypair[];
     }>;
-    sell_exactAmount(mint: PublicKey, user: PublicKey, tokenAmount: number, slippage?: number): Promise<{
+    sell_exactAmount(mint: PublicKey, user: PublicKey, tokenAmount: number, slippage?: number, poolAddress?: PublicKey): Promise<{
         instructions: TransactionInstruction[];
         signers: Keypair[];
     }>;

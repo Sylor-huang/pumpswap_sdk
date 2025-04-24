@@ -32,10 +32,16 @@ class PumpSwapSDK {
         };
         this.program = new anchor_1.Program(index_1.IDL, provider);
     }
-    async buy(mint, user, solToBuy, slippage) {
+    async buy(mint, user, solToBuy, slippage, poolAddress) {
         const slipp = slippage ?? exports.DEFAULT_SLIPPAGE_BASIS; // Default: 5%
-        const bought_token_amount = await (0, poolInfo_1.getBuyTokenAmount)(this.connection, BigInt(solToBuy * web3_js_1.LAMPORTS_PER_SOL), mint);
-        const pool = await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint);
+        const bought_token_amount = await (0, poolInfo_1.getBuyTokenAmount)(this.connection, BigInt(solToBuy * web3_js_1.LAMPORTS_PER_SOL), mint, poolAddress);
+        let pool;
+        if (poolAddress) {
+            pool = poolAddress;
+        }
+        else {
+            pool = await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint);
+        }
         const solAmount = solToBuy * (1 + slipp);
         const instructions = [];
         const newKeyPair = web3_js_1.Keypair.generate();
@@ -69,7 +75,7 @@ class PumpSwapSDK {
         instructions.push(closeAccountIx);
         return { instructions, signers };
     }
-    async sell_exactAmount(mint, user, tokenAmount, slippage) {
+    async sell_exactAmount(mint, user, tokenAmount, slippage, poolAddress) {
         const slipp = slippage ?? exports.DEFAULT_SLIPPAGE_BASIS; // Default: 5%
         const sell_token_amount = tokenAmount;
         const price = await (0, poolInfo_1.getPrice)(this.connection, mint);
@@ -90,8 +96,15 @@ class PumpSwapSDK {
         // 2. Initialize the account as a WSOL token account
         const initAccountIx = (0, spl_token_1.createInitializeAccountInstruction)(newKeyPair.publicKey, WSOL_TOKEN_ACCOUNT, user);
         instructions.push(initAccountIx);
+        let pool;
+        if (poolAddress) {
+            pool = poolAddress;
+        }
+        else {
+            pool = await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint);
+        }
         // 3. Create the sell instruction using our temp WSOL account
-        const pumpswap_sell_tx = await this.createSellInstruction(await (0, poolInfo_1.getPumpSwapPool)(this.connection, mint), user, mint, BigInt(Math.floor(sell_token_amount * 10 ** 6)), BigInt(Math.floor(minOut * web3_js_1.LAMPORTS_PER_SOL)), newKeyPair.publicKey // Use our temp account here instead of ATA
+        const pumpswap_sell_tx = await this.createSellInstruction(pool, user, mint, BigInt(Math.floor(sell_token_amount * 10 ** 6)), BigInt(Math.floor(minOut * web3_js_1.LAMPORTS_PER_SOL)), newKeyPair.publicKey // Use our temp account here instead of ATA
         );
         instructions.push(pumpswap_sell_tx);
         // 4. Close the temporary account to recover SOL
