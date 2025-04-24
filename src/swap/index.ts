@@ -65,16 +65,21 @@ export class PumpSwapSDK {
   }
     this.program = new Program<PumpSwap>(IDL as PumpSwap, provider);
   }
-  public async buy(mint: PublicKey, user: PublicKey, solToBuy: number, slippage?: number) {
+  public async buy(mint: PublicKey, user: PublicKey, solToBuy: number, slippage?: number, poolAddress?: PublicKey) {
     const slipp = slippage ?? DEFAULT_SLIPPAGE_BASIS; // Default: 5%
     const bought_token_amount = await getBuyTokenAmount(
       this.connection,
       BigInt(solToBuy * LAMPORTS_PER_SOL),
-      mint
+      mint,
+      poolAddress
     );
-    const pool = await getPumpSwapPool(this.connection, mint);
+    let pool;
+    if(poolAddress) {
+      pool = poolAddress
+    }else{
+      pool = await getPumpSwapPool(this.connection, mint);
+    }
     const solAmount = solToBuy * (1 + slipp);
-    
     const instructions = [];
     const newKeyPair = Keypair.generate();
     const signers = [newKeyPair];
@@ -137,7 +142,8 @@ export class PumpSwapSDK {
     mint: PublicKey,
     user: PublicKey,
     tokenAmount: number,
-    slippage?: number
+    slippage?: number,
+    poolAddress?: PublicKey
   ) {
     const slipp = slippage ?? DEFAULT_SLIPPAGE_BASIS; // Default: 5%
     const sell_token_amount = tokenAmount;
@@ -166,10 +172,15 @@ export class PumpSwapSDK {
       user
     );
     instructions.push(initAccountIx);
-    
+    let pool;
+    if(poolAddress) {
+      pool = poolAddress
+    }else{
+      pool = await getPumpSwapPool(this.connection, mint);
+    }
     // 3. Create the sell instruction using our temp WSOL account
     const pumpswap_sell_tx = await this.createSellInstruction(
-      await getPumpSwapPool(this.connection, mint),
+      pool,
       user,
       mint,
       BigInt(Math.floor(sell_token_amount * 10 ** 6)),
