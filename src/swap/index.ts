@@ -147,7 +147,7 @@ export class PumpSwapSDK {
   ) {
     const slipp = slippage ?? DEFAULT_SLIPPAGE_BASIS; // Default: 5%
     const sell_token_amount = tokenAmount;
-    const price = await getPrice(this.connection, mint);
+    const price = await getPrice(this.connection, mint, poolAddress);
     const minOut = price * sell_token_amount * (1 - slipp);
     
     const instructions = [];
@@ -322,8 +322,8 @@ export class PumpSwapSDK {
     });
   }
 
-  public async getTokenPrice(mint: PublicKey) {
-    const price = await getPrice(this.connection, mint);
+  public async getTokenPrice(mint: PublicKey, poolAddress?:PublicKey) {
+    const price = await getPrice(this.connection, mint,poolAddress);
     return price
   }
 }

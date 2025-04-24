@@ -148,8 +148,8 @@ const getPumpSwapPool = async (connection, mint) => {
     return pools[0].address;
 };
 exports.getPumpSwapPool = getPumpSwapPool;
-const getPrice = async (connection, mint) => {
-    const pools = await getPoolsWithPrices(connection, mint);
+const getPrice = async (connection, mint, poolAddress) => {
+    const pools = await getPoolsWithPrices(connection, mint, poolAddress);
     return pools[0].price;
 };
 exports.getPrice = getPrice;

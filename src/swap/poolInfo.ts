@@ -223,7 +223,7 @@ export const getPumpSwapPool = async (
   return pools[0].address;
 };
 
-export const getPrice = async (connection: Connection, mint: PublicKey) => {
-  const pools = await getPoolsWithPrices(connection, mint);
+export const getPrice = async (connection: Connection, mint: PublicKey, poolAddress?:PublicKey) => {
+  const pools = await getPoolsWithPrices(connection, mint,poolAddress);
   return pools[0].price;
 };
