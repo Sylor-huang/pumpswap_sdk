@@ -9,6 +9,7 @@ https://github.com/outsmartchad/pumpswap-sdk
 
   const connection = new Connection(rpc_end_point, 'confirmed');
   const tokenMint = new PublicKey(tokenAddr)
+  const tokenPair = new PublicKey(pair_address) // 可以通过 dexscreener api获取到
   const wallet = Keypair.fromSecretKey(bs58.decode(privateKey))
   const fun = new PumpSwapSDK(connection, wallet.publicKey);
 
@@ -23,9 +24,9 @@ https://github.com/outsmartchad/pumpswap-sdk
   let swapResult;
   const slipp = Number((slippage / 100).toFixed(4))
   if (swapType.toLowerCase() === 'buy') {
-    swapResult = await fun.buy(tokenMint, wallet.publicKey, Number(amount),slipp)
+    swapResult = await fun.buy(tokenMint, wallet.publicKey, Number(amount),slipp, tokenPair)
   } else {
-    swapResult = await fun.sell_exactAmount(tokenMint, wallet.publicKey, Number(tokenAmount),slipp)
+    swapResult = await fun.sell_exactAmount(tokenMint, wallet.publicKey, Number(tokenAmount),slipp,tokenPair)
   }
 
   const instructions = [...swapResult.instructions];
